@@ -25,6 +25,7 @@ export interface Showcase {
 const REQUIRED = ['id', 'title', 'category', 'component'] as const;
 
 /** Insertion-ordered, deduped by id. */
+const registry = new Map<string, Showcase>();
 
 /**
  * Validate and register a showcase. Returns the same object for convenience.
