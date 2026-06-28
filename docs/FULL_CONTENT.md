@@ -37,29 +37,26 @@ A showcase is an *experiment*: title, description, the live thing, controls, and
 
 ## Packaging strategy
 
-**Turborepo monorepo of independent, tree-shakeable packages** from day one.
+**One package, multiple entry points** — tree-shakeable subpaths, no monorepo. The whole thing is a registry, a couple of hooks/components, and (later) an init script; a Turborepo would be ceremony around ~5 small files. The core/react *boundary* still exists — enforced by the `exports` map and the fact that core never imports React — without the workspace machinery.
 
 ```
 frontis/
-  packages/
-    core/      → @frontis/core
-    react/     → @frontis/react
-    router/    → @frontis/router   (Phase 2)
-    cli/       → @frontis/cli       (Phase 3)
-  turbo.json
-  pnpm-workspace.yaml
+  src/
+    index.ts     → frontis          (core: registry, zero React)
+    react.tsx    → frontis/react    (Showcase, useSharedControls, Source, Nav)
+  vite.config.js  (lib build, two entries)
+  package.json    (exports subpaths)
 ```
 
 ```ts
-import { defineShowcase, getShowcases } from "@frontis/core";
-import { Showcase, Source, Nav, useSharedControls } from "@frontis/react";
-// Phase 2:
-import { HashRouter } from "@frontis/router";
+import { defineShowcase, getShowcases } from "frontis";
+import { Showcase, Source, Nav, useSharedControls } from "frontis/react";
+// Phase 2 would add another subpath, e.g. "frontis/router".
 ```
 
-`@frontis/react` depends on `@frontis/core`; consumers install only what they use. The real-world validation consumer (fluidity-js) lives in its **own repo** and depends on the published/linked packages — this keeps the package boundary honest, instead of hiding leaks behind a shared workspace.
+`frontis/react` is a separate entry so a non-React consumer importing `frontis` never pulls React; both stay independently tree-shakeable. The real-world validation consumer (fluidity-js) lives in its **own repo** and depends on the published/linked package — this keeps the boundary honest, instead of hiding leaks behind a shared workspace.
 
-Leva is a **peer dependency**, not a re-implementation. Frontis composes Leva; it does not replace it.
+If `router`/`cli` ever need genuinely independent release cadences, the split to a monorepo is mechanical and cheap to defer — so it's deferred (YAGNI). Leva is a **peer dependency**, not a re-implementation. Frontis composes Leva; it does not replace it.
 
 ---
 

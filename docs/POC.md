@@ -4,9 +4,9 @@
 
 **Done when:** the fluidity demo runs on Frontis primitives with identical behavior, and the hand-maintained registry/store/source ceremony is gone.
 
-Scope: `@frontis/core` + `@frontis/react` only. No router. No CLI. Leva is a peer dep.
+Scope: the `frontis` (core) + `frontis/react` entry points only. No router. No CLI. Leva is a peer dep.
 
-**Repo shape:** Turborepo monorepo (`pnpm` workspace) from the start — `packages/core`, `packages/react`. Router/CLI packages get added in later phases. fluidity-js is **not** in this monorepo; it stays in its own repo and consumes the packages via `pnpm link` (or `file:`/`workspace:` during dev), so the package boundary is exercised for real.
+**Repo shape:** a single package with two entry points — `frontis` (core) and `frontis/react` — via the `exports` map. No monorepo: the surface is ~5 small files, so a Turborepo would be ceremony. The core/react boundary is enforced by `exports` + core never importing React. fluidity-js is **not** in this repo; it stays in its own repo and consumes the built package via `file:`/`link` during dev, so the package boundary is exercised for real (watch React dedupe when linking).
 
 ## Why fluidity-js is the test case
 
@@ -38,22 +38,20 @@ Real code in `fluidity/demo/src` that Frontis should absorb:
 
 ## Milestones
 
-### M0 — Turborepo skeleton
-- [ ] Root: `pnpm-workspace.yaml` (`packages/*`), `turbo.json` (`build`, `dev`, `lint`, `typecheck` pipelines), shared `tsconfig.base.json` (strict), root scripts.
-- [ ] `packages/core` → `@frontis/core`. `type: module`, ESM + `.d.ts`. No runtime deps.
-- [ ] `packages/react` → `@frontis/react`. Depends on `@frontis/core` (`workspace:*`). Peer deps: `react`/`preact`, `leva`.
-- [ ] Lib build via `tsup` (or vite lib mode) per package; `turbo run build` builds the graph in dependency order.
-- [ ] **Check:** `turbo run build typecheck` green across the workspace.
+### M0 — Single-package skeleton ✅
+- [x] One package, `type: module`, strict `tsconfig`. Vite lib build, two entries (`src/index.ts` → `frontis`, `src/react.tsx` → `frontis/react`), ESM + hand-authored `.d.ts` copied into `dist`.
+- [x] `exports` map exposes `.` (core, no runtime deps) and `./react`. Peer deps: `react`/`react-dom` (required), `leva` (optional — only `frontis/react` needs it).
+- [x] **Check:** `bun run typecheck` + `bun run build` green; built `dist/react.js` keeps `react`/`react/jsx-runtime`/`leva` external.
 
-### M1 — `frontis/core`: registry
-- [ ] `defineShowcase(meta)` — validates required fields (`id`, `title`, `category`, `component`), registers into a module-level registry, returns the showcase.
-- [ ] `getShowcases()` / `getCategories()`.
-- [ ] **Check:** a `__main__`-style test asserts duplicate `id` throws and `getCategories()` dedupes. (smallest thing that fails if the registry breaks)
+### M1 — `frontis/core`: registry ✅
+- [x] `defineShowcase(meta)` — validates required fields (`id`, `title`, `category`, `component`), registers into a module-level registry keyed by `id`, returns the showcase.
+- [x] `getShowcases()` / `getCategories()` (deduped, first-seen order). Plus `clearShowcases()` test helper.
+- [x] **Check:** test asserts missing required field throws, duplicate `id` **warns + overwrites** (HMR-safe — throwing would red-screen Vite on every showcase edit), and `getCategories()` dedupes.
 
-### M2 — `frontis/react`: `<Showcase>` + `useSharedControls`
-- [ ] `<Showcase>` creates one isolated Leva store (`useCreateStore`), provides it via context, renders `<LevaPanel store>` + children.
-- [ ] `useSharedControls(sharedSchema, overrides?)` reads the context store, calls Leva `useControls` with `{ ...sharedSchema, ...overrides }`, returns flat values. No sync effect inside (that's consumer-specific).
-- [ ] **Check:** two `<Showcase>` instances mounted together have independent control state.
+### M2 — `frontis/react`: `<Showcase>` + `useSharedControls` ✅
+- [x] `<Showcase>` creates one isolated Leva store (`useCreateStore`), provides it via Leva's own `LevaStoreProvider` context, renders `<LevaPanel store>` + children. So a consumer's local `useControls('settings', …)` resolves this store automatically — no store prop to thread.
+- [x] `useSharedControls(sharedSchema, options?)` — `options` = `{ folder?, overrides? }`. Merges `{ ...sharedSchema, ...overrides }` on the context store, returns flat values. `folder` preserves fluidity's `'fluid config'` grouping. No sync effect inside (consumer-specific). Plus `useShowcaseStore()` for direct store access.
+- [x] **Check:** two `<Showcase>` instances get distinct stores; `useSharedControls` returns the right flat values through context.
 
 ### M3 — Port the fluidity demo onto M1–M2
 - [ ] Add `defineShowcase(...)` to each file in `demo/src/examples/` (Text, Image, AutoSplat, Split).
@@ -80,4 +78,4 @@ Real code in `fluidity/demo/src` that Frontis should absorb:
 
 ## Explicitly out of scope for POC
 
-Router, URL-synced controls, hash routing, search, hotkeys, `<Documentation>`, a frontis-owned `<Controls>`/`useControls`, `frontis init`, templates, static export, the `@frontis/router` and `@frontis/cli` packages. All deferred to Phase 2/3 — add only when a second real consumer needs them. (The monorepo itself is set up in M0; only the extra *packages* are deferred.)
+Router, URL-synced controls, hash routing, search, hotkeys, `<Documentation>`, a frontis-owned `<Controls>`/`useControls`, `frontis init`, templates, static export, the `frontis/router` and `frontis/cli` entry points. All deferred to Phase 2/3 — add only when a second real consumer needs them (a new subpath is a one-line `exports` addition, not a packaging project).

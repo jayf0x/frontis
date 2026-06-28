@@ -6,11 +6,13 @@ import { defineConfig } from 'vite';
 const __dir = new URL('.', import.meta.url).pathname;
 
 function copyTypes() {
+  const files = ['index.d.ts', 'globals.d.ts', 'react.d.ts'];
   return {
     name: 'copy-types',
     closeBundle() {
-      fs.copyFileSync(resolve(__dir, 'src/index.d.ts'), resolve(__dir, 'dist/index.d.ts'));
-      fs.copyFileSync(resolve(__dir, 'src/globals.d.ts'), resolve(__dir, 'dist/globals.d.ts'));
+      for (const f of files) {
+        fs.copyFileSync(resolve(__dir, `src/${f}`), resolve(__dir, `dist/${f}`));
+      }
     },
   };
 }
@@ -20,21 +22,17 @@ export default defineConfig({
   plugins: [copyTypes()],
   build: {
     lib: {
-      entry: resolve(__dir, 'src/index.ts'),
-      name: 'FluidityJS',
-      fileName: 'index',
+      // Two entry points, one package: `frontis` (core) and `frontis/react`.
+      entry: {
+        index: resolve(__dir, 'src/index.ts'),
+        react: resolve(__dir, 'src/react.tsx'),
+      },
       formats: ['es'],
     },
     minify: 'oxc',
     rollupOptions: {
-      external: ['react', 'react/jsx-runtime', 'react-dom'],
-      output: {
-        globals: {
-          react: 'React',
-          'react/jsx-runtime': 'ReactJSXRuntime',
-          'react-dom': 'ReactDOM',
-        },
-      },
+      // Peer deps stay external — never bundled.
+      external: ['react', 'react/jsx-runtime', 'react-dom', /^leva(\/|$)/],
     },
     sourcemap: false,
   },
