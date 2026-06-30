@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { render } from '@testing-library/react';
+import { levaStore } from 'leva';
 import { describe, expect, it } from 'vitest';
 
-import { Showcase, useSharedControls, useShowcaseStore } from '../src/react';
+import { Showcase, Source, useSharedControls, useShowcaseStore } from '../src/react';
 
 describe('Showcase', () => {
   it('gives each instance an isolated Leva store', () => {
@@ -21,7 +22,6 @@ describe('Showcase', () => {
         </Showcase>
       </>,
     );
-    // Two distinct stores → control state can't leak between showcases.
     expect(new Set(stores).size).toBe(2);
   });
 });
@@ -39,5 +39,40 @@ describe('useSharedControls', () => {
       </Showcase>,
     );
     expect(values).toEqual({ x: 5 });
+  });
+
+  it('keeps controls off the global store and isolated per showcase', () => {
+    // Same key, different default per showcase. If both landed on Leva's global
+    // store (the bug), the second would inherit the first's value by path.
+    const seen: number[] = [];
+    function Probe({ v }: { v: number }) {
+      const { shared } = useSharedControls({ shared: { value: v, min: 0, max: 100 } }) as {
+        shared: number;
+      };
+      seen.push(shared);
+      return null;
+    }
+    render(
+      <>
+        <Showcase>
+          <Probe v={1} />
+        </Showcase>
+        <Showcase>
+          <Probe v={2} />
+        </Showcase>
+      </>,
+    );
+    // Each showcase keeps its own default — not collapsed to a shared value.
+    expect(seen).toEqual([1, 2]);
+    // And nothing leaked onto the global store.
+    expect(Object.keys(levaStore.getData())).not.toContain('shared');
+  });
+});
+
+describe('Source', () => {
+  it('renders the given code', () => {
+    const { container } = render(<Source code="const a = 1;" />);
+    expect(container.querySelector('code')?.textContent).toBe('const a = 1;');
+    expect(container.querySelector('button')?.textContent).toMatch(/copy/i);
   });
 });
